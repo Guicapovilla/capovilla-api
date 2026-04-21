@@ -2,8 +2,19 @@
 // Protegido por header x-dashboard-secret pra impedir abuso externo
 
 export default async function handler(req, res) {
-  // CORS — libera requisição do GitHub Pages
-  res.setHeader('Access-Control-Allow-Origin', 'https://guicapovilla.github.io');
+  // CORS — libera GitHub Pages + localhost (dev)
+  const origemPermitida = [
+    'https://guicapovilla.github.io',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'http://localhost:3000',
+  ];
+  const origemRequest = req.headers.origin;
+  if (origemPermitida.includes(origemRequest)) {
+    res.setHeader('Access-Control-Allow-Origin', origemRequest);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://guicapovilla.github.io');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-dashboard-secret');
 
