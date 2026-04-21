@@ -1,0 +1,9 @@
+{
+  "name": "capovilla-api",
+  "version": "1.0.0",
+  "description": "Backend serverless pro dashboard Capovilla",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
