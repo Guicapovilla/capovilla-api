@@ -9,6 +9,8 @@ export default async function handler(req, res) {
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     'http://localhost:3000',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
   ];
   const origemRequest = req.headers.origin;
   if (origemPermitida.includes(origemRequest)) {
@@ -55,12 +57,6 @@ export default async function handler(req, res) {
         })
       );
       const fotasValidas = fotosBase64.filter(Boolean);
-
-      // Monta conteúdo multimodal: imagens de referência + prompt
-      const content = [
-        ...fotasValidas.map(url => ({ type: 'image_url', image_url: { url, detail: 'low' } })),
-        { type: 'text', text: prompt }
-      ];
 
       // Usa Chat Completions com gpt-4o para gerar descrição enriquecida,
       // depois passa para Images API — gpt-image-1 via chat não aceita imagens diretamente
