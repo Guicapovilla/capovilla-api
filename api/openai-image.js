@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  const { prompt, photo_urls = [], size = '1792x1024' } = req.body || {};
+  const { prompt, photo_urls = [], size = '1536x1024' } = req.body || {};
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'prompt obrigatório' });
   }
