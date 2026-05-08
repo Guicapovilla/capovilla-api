@@ -106,7 +106,7 @@ async function gerarInstantID(res, prompt, photo_urls, token, openaiKey) {
     const imgRes = await fetch(outputUrl);
     if (!imgRes.ok) throw new Error('Falha ao baixar imagem do Replicate');
     const buf = Buffer.from(await imgRes.arrayBuffer());
-    return res.status(200).json({ b64_json: buf.toString('base64') });
+    return res.status(200).json({ b64_json: buf.toString('base64'), provider: 'replicate-instantid' });
 
   } catch (err) {
     console.error('InstantID error:', err.message);
@@ -169,7 +169,7 @@ async function gerarOpenAI(res, prompt, photo_urls, apiKey) {
     if (!genRes.ok) return res.status(genRes.status).json({ error: gd.error?.message || 'OpenAI falhou' });
     const b64_json = gd.data?.[0]?.b64_json;
     if (!b64_json) return res.status(500).json({ error: 'Imagem não retornada' });
-    return res.status(200).json({ b64_json });
+    return res.status(200).json({ b64_json, provider: 'openai-gpt-image-1' });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
