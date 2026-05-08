@@ -1,9 +1,14 @@
-// Endpoint serverless que proxia geração de imagem via OpenAI gpt-image-1
-// Recebe: { prompt, photo_urls[], size }
+// Endpoint serverless — geração de thumbnail via OpenAI Responses API (gpt-4o + image_generation)
+// Recebe: { prompt, photo_urls[], size, canal_id? }
 // Retorna: { b64_json }
+//
+// ROADMAP MULTI-TENANT:
+//   1. Adicionar autenticação: trocar x-dashboard-secret por JWT do Supabase Auth
+//   2. Extrair canal_id do token e usar para isolar dados por criador
+//   3. Habilitar RLS no Supabase com policy: auth.uid() = user_id
+//   — A estrutura do endpoint já recebe canal_id opcionalmente para facilitar essa migração
 
 export default async function handler(req, res) {
-  // CORS — mesmas origens do claude.js
   const origemPermitida = [
     'https://guicapovilla.github.io',
     'http://localhost:8000',
@@ -40,94 +45,57 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Se há fotos de referência, usa o endpoint de edição com contexto visual
-    // Caso contrário, usa geração simples
-    let response;
-
-    if (photo_urls.length > 0) {
-      // Baixa as fotos e converte para base64 para passar como contexto
-      const fotosBase64 = await Promise.all(
-        photo_urls.slice(0, 4).map(async url => {
+    // Baixa as fotos de referência e converte para base64
+    const fotosValidas = (await Promise.all(
+      photo_urls.slice(0, 4).map(async url => {
+        try {
           const r = await fetch(url);
           if (!r.ok) return null;
           const buf = await r.arrayBuffer();
           const b64 = Buffer.from(buf).toString('base64');
-          const mime = r.headers.get('content-type') || 'image/jpeg';
-          return `data:${mime};base64,${b64}`;
-        })
-      );
-      const fotasValidas = fotosBase64.filter(Boolean);
+          const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+          return { b64, mime };
+        } catch { return null; }
+      })
+    )).filter(Boolean);
 
-      // Usa Chat Completions com gpt-4o para gerar descrição enriquecida,
-      // depois passa para Images API — gpt-image-1 via chat não aceita imagens diretamente
-      // Então enriquecemos o prompt com análise visual primeiro
-      const chatRes = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          max_tokens: 300,
-          messages: [{
-            role: 'user',
-            content: [
-              ...fotasValidas.map(url => ({ type: 'image_url', image_url: { url, detail: 'low' } })),
-              {
-                type: 'text',
-                text: `Descreva em 2 frases as características visuais do rosto desta pessoa (formato do rosto, cor dos olhos, cabelo, estilo) para usar como referência em geração de imagem. Seja objetivo e específico.`
-              }
-            ]
-          }]
-        })
-      });
-      const chatData = await chatRes.json();
-      const descricaoRosto = chatData.choices?.[0]?.message?.content || '';
-      const promptEnriquecido = `${prompt}\n\nReferência visual do criador: ${descricaoRosto}`;
+    // Monta o input multimodal: fotos de referência + prompt textual
+    const inputContent = [
+      ...fotosValidas.map(f => ({
+        type: 'input_image',
+        source: { type: 'base64', media_type: f.mime, data: f.b64 },
+      })),
+      { type: 'input_text', text: prompt },
+    ];
 
-      response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-image-1',
-          prompt: promptEnriquecido,
-          n: 1,
-          size,
-          output_format: 'png',
-        })
-      });
-    } else {
-      // Sem fotos de referência: geração simples
-      response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-image-1',
-          prompt,
-          n: 1,
-          size,
-          output_format: 'png',
-        })
-      });
-    }
+    // Responses API: gpt-4o vê as fotos e gera a imagem diretamente
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        input: [{ role: 'user', content: inputContent }],
+        tools: [{ type: 'image_generation', quality: 'high', size, output_format: 'png' }],
+      }),
+    });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('OpenAI error:', data);
-      return res.status(response.status).json({ error: data.error?.message || 'OpenAI API falhou' });
+      console.error('OpenAI Responses API error:', JSON.stringify(data));
+      return res.status(response.status).json({ error: data.error?.message || 'OpenAI API falhou', details: data });
     }
 
-    const b64_json = data.data?.[0]?.b64_json;
+    // Extrai a imagem gerada do output
+    const imgOutput = (data.output || []).find(o => o.type === 'image_generation_call');
+    const b64_json = imgOutput?.result;
+
     if (!b64_json) {
-      return res.status(500).json({ error: 'Imagem não retornada pela API' });
+      console.error('Resposta sem imagem:', JSON.stringify(data));
+      return res.status(500).json({ error: 'Imagem não retornada pela API', details: data.output });
     }
 
     return res.status(200).json({ b64_json });
