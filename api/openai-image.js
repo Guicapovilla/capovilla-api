@@ -45,25 +45,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Baixa as fotos de referência e converte para base64
-    const fotosValidas = (await Promise.all(
-      photo_urls.slice(0, 4).map(async url => {
-        try {
-          const r = await fetch(url);
-          if (!r.ok) return null;
-          const buf = await r.arrayBuffer();
-          const b64 = Buffer.from(buf).toString('base64');
-          const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
-          return { b64, mime };
-        } catch { return null; }
-      })
-    )).filter(Boolean);
-
-    // Monta o input multimodal: fotos de referência + prompt textual
+    // Monta o input multimodal: fotos de referência (URLs públicas) + prompt textual
     const inputContent = [
-      ...fotosValidas.map(f => ({
+      ...photo_urls.slice(0, 4).map(url => ({
         type: 'input_image',
-        source: { type: 'base64', media_type: f.mime, data: f.b64 },
+        image_url: url,
       })),
       { type: 'input_text', text: prompt },
     ];
