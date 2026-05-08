@@ -97,7 +97,7 @@ export default async function handler(req, res) {
           prompt: promptEnriquecido,
           n: 1,
           size,
-          output_format: 'b64_json',
+          output_format: 'png',
         })
       });
     } else {
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
           prompt,
           n: 1,
           size,
-          output_format: 'b64_json',
+          output_format: 'png',
         })
       });
     }
