@@ -100,7 +100,7 @@ export default async function handler(req, res) {
     });
     const gd = await genRes.json();
     if (!genRes.ok) return res.status(genRes.status).json({ error: gd.error?.message || 'OpenAI falhou' });
-    return res.status(200).json({ b64_json: gd.data?.[0]?.b64_json, provider: 'openai-gpt-image-1' });
+    return res.status(200).json({ b64_json: gd.data?.[0]?.b64_json, provider: 'openai-gpt-image-1', debug: { had_replicate_token: !!REPLICATE_TOKEN, photo_urls_count: photo_urls.length } });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
