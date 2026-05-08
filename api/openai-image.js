@@ -46,46 +46,42 @@ export default async function handler(req, res) {
 
   try {
     let b64_json;
+    let promptFinal = prompt;
 
     if (photo_urls.length > 0) {
-      // Baixa a foto de referência e envia como imagem base para images/edits
-      // gpt-image-1 edits: usa a foto como ponto de partida, mantém o rosto
-      const fotoRes = await fetch(photo_urls[0]);
-      if (!fotoRes.ok) throw new Error('Não foi possível baixar a foto de referência');
-      const fotoBuffer = Buffer.from(await fotoRes.arrayBuffer());
-
-      // Envia como multipart/form-data (FormData e Blob são globais no Node 18+)
-      const form = new FormData();
-      form.append('model', 'gpt-image-1');
-      form.append('prompt', prompt);
-      form.append('n', '1');
-      form.append('size', '1536x1024');
-      form.append('image', new Blob([fotoBuffer], { type: 'image/png' }), 'reference.png');
-
-      const editRes = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-        body: form,
-      });
-
-      const editData = await editRes.json();
-      if (!editRes.ok) {
-        console.error('OpenAI edits error:', editData);
-        throw new Error(editData.error?.message || 'images/edits falhou');
-      }
-      b64_json = editData.data?.[0]?.b64_json;
-
-    } else {
-      // Sem fotos: geração simples
-      const genRes = await fetch('https://api.openai.com/v1/images/generations', {
+      // Usa gpt-4o para analisar TODAS as fotos e gerar descrição facial detalhada
+      const chatRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-        body: JSON.stringify({ model: 'gpt-image-1', prompt, n: 1, size: '1536x1024', output_format: 'png' }),
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          max_tokens: 300,
+          messages: [{
+            role: 'user',
+            content: [
+              ...photo_urls.slice(0, 6).map(url => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
+              {
+                type: 'text',
+                text: 'Analise todas as fotos desta pessoa e descreva com precisão: cor e textura do cabelo, cor dos olhos, formato do rosto, sobrancelhas, traços marcantes, tom de pele, estilo de barba/bigode se houver. Seja específico e detalhado para uso como referência em geração de imagem. Máximo 4 frases.'
+              }
+            ]
+          }]
+        })
       });
-      const genData = await genRes.json();
-      if (!genRes.ok) throw new Error(genData.error?.message || 'images/generations falhou');
-      b64_json = genData.data?.[0]?.b64_json;
+      const chatData = await chatRes.json();
+      const descricao = chatData.choices?.[0]?.message?.content || '';
+      if (descricao) promptFinal = `${prompt}\n\nDescrição detalhada do rosto do criador (deve ser fielmente reproduzido): ${descricao}`;
     }
+
+    // Geração com prompt enriquecido
+    const genRes = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: 'gpt-image-1', prompt: promptFinal, n: 1, size: '1536x1024', output_format: 'png' }),
+    });
+    const genData = await genRes.json();
+    if (!genRes.ok) throw new Error(genData.error?.message || 'images/generations falhou');
+    b64_json = genData.data?.[0]?.b64_json;
 
     if (!b64_json) return res.status(500).json({ error: 'Imagem não retornada pela API' });
     return res.status(200).json({ b64_json });
