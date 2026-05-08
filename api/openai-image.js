@@ -32,6 +32,7 @@ export default async function handler(req, res) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
   // ── Caminho Replicate: inicia predição e retorna prediction_id imediatamente ──
+  let replicateError = null;
   if (REPLICATE_TOKEN && photo_urls.length > 0) {
     try {
       const startRes = await fetch(
@@ -62,9 +63,10 @@ export default async function handler(req, res) {
       if (startRes.ok && pred.id) {
         return res.status(200).json({ prediction_id: pred.id });
       }
+      replicateError = { status: startRes.status, body: pred };
       console.error('Replicate start error:', pred);
-      // Fallback para OpenAI se não conseguiu iniciar
     } catch (err) {
+      replicateError = { exception: err.message };
       console.error('Replicate start exception:', err.message);
     }
   }
@@ -100,7 +102,7 @@ export default async function handler(req, res) {
     });
     const gd = await genRes.json();
     if (!genRes.ok) return res.status(genRes.status).json({ error: gd.error?.message || 'OpenAI falhou' });
-    return res.status(200).json({ b64_json: gd.data?.[0]?.b64_json, provider: 'openai-gpt-image-1', debug: { had_replicate_token: !!REPLICATE_TOKEN, photo_urls_count: photo_urls.length } });
+    return res.status(200).json({ b64_json: gd.data?.[0]?.b64_json, provider: 'openai-gpt-image-1', debug: { had_replicate_token: !!REPLICATE_TOKEN, photo_urls_count: photo_urls.length, replicate_error: replicateError } });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
