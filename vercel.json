@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/openai-image.js": {
+    "api/aprendizado.js": {
       "maxDuration": 60
     }
   }
