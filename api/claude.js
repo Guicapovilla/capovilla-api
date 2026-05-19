@@ -1,5 +1,6 @@
 // Endpoint serverless que proxia requisições pra Anthropic API
 // Protegido por header x-dashboard-secret pra impedir abuso externo
+// v2 — CORS atualizado 2026-05-18
 
 export default async function handler(req, res) {
   // CORS — libera GitHub Pages + localhost (dev)
