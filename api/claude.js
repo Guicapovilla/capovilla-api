@@ -8,10 +8,17 @@ export default async function handler(req, res) {
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     'http://localhost:3000',
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:8090',
+    'http://127.0.0.1:8090',
+    'null', // file:// abre com origin "null"
   ];
-  const origemRequest = req.headers.origin;
+  const origemRequest = req.headers.origin || 'null';
   if (origemPermitida.includes(origemRequest)) {
-    res.setHeader('Access-Control-Allow-Origin', origemRequest);
+    res.setHeader('Access-Control-Allow-Origin', origemRequest === 'null' ? '*' : origemRequest);
   } else {
     res.setHeader('Access-Control-Allow-Origin', 'https://guicapovilla.github.io');
   }
